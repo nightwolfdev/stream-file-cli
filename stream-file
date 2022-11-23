@@ -1,0 +1,125 @@
+#!/usr/bin/env node
+
+const fs = require('fs');
+const readline = require('readline');
+
+const args = process.argv.slice(2);
+const commands = ['read', 'write', 'copy'];
+
+const usrCmd = args[0];
+const usrFilePath = args[1];
+
+let command = '';
+
+if (args.length === 0) {
+    help();
+    return;
+} else if (args.length > 2) {
+    console.log('More arguments provided than expected');
+    help();
+    return;
+} else {
+    command = usrCmd;
+
+    if (!usrFilePath) {
+        console.log('This program requires at least one path to a file');
+        help();
+        return;
+    }
+}
+
+switch (commands.indexOf(command)) {
+    case 0:
+        read(usrFilePath);
+        break;
+    case 1:
+        write(usrFilePath);
+        break;
+    case 2:
+        copy(usrFilePath);
+        break;
+    default:
+        console.log('You entered a command that does not exist.')
+        help();
+        return;
+}
+
+function help() {
+    const text = `
+        CLI to demonstrate how to read, write, and copy files using streams.
+
+        Usage:
+
+            stream-file <command> <path_to_file>
+
+            <command> can be:
+            read: Print the file's contents to the terminal
+            write: Write a message from the terminal to a file
+            copy: Create a copy of a file in the current directory
+
+            <path_to_file> is the path to the file you want to work with
+    `;
+
+    console.log(text);
+};
+
+function read(filePath) {
+    const stream = fs.createReadStream(filePath, 'utf8'); // If you don't pass in utf8 format, the output would be of the Buffer type, which isn't human readable.
+
+    stream.on('error', error => console.log(error.message));
+
+    stream.on('data', chunk => console.log(chunk));
+}
+
+function write(filePath) {
+    const stream = fs.createWriteStream(filePath);
+
+    stream.on('error', error => console.log(`An error occurred while writing to the file. Error: ${error.message}`));
+
+    const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout,
+        prompt: 'Enter a sentence: '
+    });
+
+    rl.prompt();
+
+    rl.on('line', line => {
+        switch (line.trim()) {
+            case 'exit':
+                rl.close();
+                break;
+            default:
+                sentence = line + '\n';
+                stream.write(sentence);
+                rl.prompt();
+                break;
+        }
+    });
+
+    rl.on('close', () => {
+        stream.end();
+
+        stream.on('finish', () => {
+            console.log(`All your sentences have been written to ${filePath}`);
+        });
+
+        // Provide enough time for the finish event to display message.
+        setTimeout(() => {
+            process.exit(0);
+        }, 100);
+    });
+}
+
+function copy(filePath) {
+    const inputStream = fs.createReadStream(filePath);
+    const filePathParts = filePath.split('.');
+    const filePathCopy = filePathParts[0] + '-copy.' + filePathParts[1];
+    const outputStream = fs.createWriteStream(filePathCopy);
+
+    inputStream.pipe(outputStream);
+
+    outputStream.on('finish', () => {
+        console.log(`You have successfully created a ${filePath} copy. The new file name is ${filePathCopy}.`);
+    });
+}
